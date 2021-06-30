@@ -1,0 +1,420 @@
+---
+title: "Moving to Glasgow: data challenge"
+author: "Holly Scott"
+date: "23 April 2020"
+output: html_document
+---
+
+# Moving to Glasgow: a data challenge from a friend
+
+A friend has contacted you for advice about moving to Glasgow for work. They want to know how expensive it is to buy a house/flat in different areas of Glasgow. They are also worried about the weather and want to know how much sunshine they can expect once they arrive.
+
+Your friend has discovered that the [Glasgow Open Data website](http://data.glasgow.gov.uk/dataset) has free online data on thousands of house sales and a century of weather observations - perfect! Now they need your help to make sense of all that data.
+
+You agree to explore the data using RStudio, and to answer their questions:
+
+* "How much do houses/flats cost on average in Glasgow? Could you work out a list of postcode areas from most expensive to least expensive, to help me focus my search?"
+* "What will the weather be like when I arrive in August? I'll be spending the month of August getting set up before starting the new job. What is the average temperature at that time of year? How many hours of sunshine can I expect to get that month?"
+
+This .Rmd file includes some hints to get you started, and then it's over to you to explore the data. Look back at your R lab activities from this year to see what code you can adapt. There will be multiple different ways to go about getting this information out of the data, so play around. Remember: even experienced researchers don't just write code perfectly from memory - it's about looking back at examples, finding resources, trying things out and adjusting them using error messages as clues!
+
+
+# Getting set up: reading in the data
+
+```{r}
+library(tidyverse)
+# you can load any other packages you use here
+```
+
+The code below reads in the .csv files directly from the website where they are stored. However, if you wanted to, you could also download the files from the [Glasgow Open Data site](http://data.glasgow.gov.uk/dataset) and read them in from your computer like you usually do for lab and homework activities. You can get more information on what's included in each data file by visiting the site too.
+
+```{r}
+# Information about every house/flat sale in Glasgow City Council during 2012 (most recent full year of data currently available online)
+houses_raw <- read_csv("http://opendata.uksouth.cloudapp.azure.com/dataset/8ced8856-d922-4500-99d0-d17710e1fc65/resource/dc15fd2d-39d4-45fa-8186-e8ff967f94f0/download/house-price-2012.csv")
+
+# Average mean daily temperature in West of Scotland each month since 1910
+temperature <- read_csv("http://opendata.uksouth.cloudapp.azure.com/dataset/71910729-c63d-4fd0-bc97-53e34b099ff3/resource/38ee0884-734c-4b67-bfbd-c6a7fcb85aa9/download/wos-meantemp.csv")
+
+# Average number of hours of sunshine in West of Scotland each month since 1929
+sunshine <- read_csv("http://opendata.uksouth.cloudapp.azure.com/dataset/7d5d8522-5b71-4745-9ee0-d72e0aed0a9e/resource/47494c78-0d6d-49a0-8a91-a02a03201afe/download/wos-sunshine-hours.csv")
+```
+
+Here is the Data Dictionary for the house price data file. You can use View() to see what each column name refers to. E.g. what does the column LHF stand for?
+```{r}
+houses_data_dictionary <-read_csv("http://opendata.uksouth.cloudapp.azure.com/dataset/8ced8856-d922-4500-99d0-d17710e1fc65/resource/a6868776-656c-46b0-8afe-6860e24cf116/download/house-price-data-dictionary.csv")
+```
+
+
+# A few tips for working with this data
+
+## Tidy column names
+
+If you take a look at the raw house price data, you'll notice that the column names could be tidier. When column names include spaces, you need to put them in single quotes, e.g. 'ACTUAL PRICE AT POINT OF SALE'. This can get annoying quickly, so you might want to rename some columns now - there's an example below of the code to do this.
+
+```{r}
+glimpse(houses_raw) # take a look at existing column names
+
+houses_tidier <- houses_raw %>%
+  rename(price = 'ACTUAL PRICE AT POINT OF SALE') %>%# rename(new_col_name = old_col_name)
+  rename(price_now = 'PRICE CONSTANT AT July 2013') # rename(new_col_name = old_col_name)
+```
+
+## Separating postcode prefix/suffix
+
+To give your friend a list of the postcode areas in order of average house price, you'll need to separate the full postcodes (e.g. G69 6ED) into two parts so you can focus on just the prefix (e.g. G69). Here is some code below showing one of the ways that you can do that:
+
+```{r}
+houses_final <- houses_tidier %>% # take the tidier column name version from above
+  separate(POSTCODE, c("postcode_prefix", "postcode_suffix"))
+
+glimpse(houses_final) # have a look to see how this has changed the data
+```
+
+
+# Over to you!
+
+Now for each question, think about what you want to do with the data in steps (maybe sketch or write it out in words). Then look back at your R data activities from this year to find examples where you have done each step before, for example:
+
+* You want to calculate the average house price for each postcode prefix area. Maybe look back to where you have previously calculated the average happiness score for different genders, and use this to help you.
+* You might want to change the temperature data from wide format to long format. Maybe look back to where you did this with AQ scores in class.
+
+You can add new code chunks below (click 'Insert' > 'R') and write your notes in the spaces between them.
+
+
+
+
+
+**Flat/house prices based on postcodes**
+*Using the current estimated price gives a better perspective about the prices*
+
+* We only select the two clolumns that we need: the prefix and the current price
+* We are grouping by the prefix of the post code
+* Then we create the mean of the prices for each prefix
+* Last, we arrange the list in descending order
+```{r}
+list_of_prices <- houses_final %>%
+  select("postcode_prefix", "price_now") %>%
+  group_by(postcode_prefix) %>%
+  summarise(mean_price = mean(price_now)) %>%
+  arrange(by=desc(mean_price))
+```
+
+
+
+
+
+**Hours of sinshine in August**
+
+* We select the needed columns - mean of the hours of sunshine in each month (no quarterly or annual)
+
+* We make it into a longer format for easier access
+
+* We group by the months and get the mean for each month
+* With the last line we only show the given month
+```{r}
+sun_months <- select(.data = sunshine, "JAN":"DEC")
+sun_long <- pivot_longer(data = sun_months, 
+                         names_to = "Months",
+                         values_to = "Hours_of_sunshine",
+                         cols = JAN:DEC)
+
+Aug_sunshine <- sun_long %>%
+  group_by(Months) %>%
+  summarise(mean_sun = mean(Hours_of_sunshine)) %>%
+  filter(Months == "AUG")
+  
+```
+
+
+
+
+
+
+
+
+
+**Avarage temperature in August**
+
+*Because there are missing parts for 2013, we need to delete that line so we can use the summarise function*
+
+* We select the needed columns - mean of the temperature in each month (no quarterly or annual)
+
+* We make it into a longer format for easier access
+
+* We group by the months and get the mean for each month
+* With the last line we only show the given month
+```{r}
+temp_months <- temperature %>%
+  filter(Year != "2013") %>%
+  select("JAN":"DEC")
+
+temp_long <- pivot_longer(data = temp_months, 
+                         names_to = "Months",
+                         values_to = "AVG_temp",
+                         cols = JAN:DEC)
+
+Aug_temp <- temp_long %>%
+  group_by(Months) %>%
+  summarise(mean_sun = mean(AVG_temp)) %>%
+  filter(Months == "AUG")
+  
+```
+
+
+
+
+
+**Two plots to present the change of annual avarage temperature in Glasgow**
+```{r}
+temp <- filter(.data = temperature, Year != "2013") %>%
+  select(Year, ANN)
+
+
+#lollipop plot
+ggplot(temp, aes(x=Year, y=ANN)) +
+  geom_point() +
+  geom_segment(aes(x=Year, xend=Year, y=0, yend=ANN))
+
+
+
+#line graph
+ggplot(temp, aes(x=Year, y=ANN)) +
+  geom_line()
+```
+
+
+# Going further
+
+Once you complete these tasks, you can explore these datafiles further with questions of your own. You could create some visualisations for how the weather in Glasgow has changed over the last century, for example. 
+
+Then you can also check out what other .csv files are available on the [Glasgow Open Data site](http://data.glasgow.gov.uk/dataset), to explore independently. E.g. how have house prices changed in the 20 years of datafiles available? There's more data on crime, transport, health...
+
+
+
+
+
+
+
+**Languages spoken in different parts of the city**
+```{r}
+
+language_stat <- read_csv("http://opendata.uksouth.cloudapp.azure.com/dataset/88157941-34a9-4298-a528-81e7b4eeed27/resource/6928614d-adbb-4ff9-bb1a-3ac1a0417628/download/lang-used-at-home-by-sex-by-age.csv")
+
+language_needed <- language_stat %>%
+  
+  #renaming columns for easier access
+  rename(Area = 'Ward Name') %>%
+  rename(Age = 'Age Bracket') %>%
+  rename(All_people = 'All people aged 3 and over') %>%
+  rename(English_only = 'English only') %>%
+  rename(BSL = "British Sign Language") %>%
+  rename(Band = 'Sex/Age Band') %>%
+  
+  #filtering for the lines with the total population of the given area
+  #need to consider 'Band' too because the table includes sex too
+  filter(Band == "All people aged 3 and over:", Age == "Total") %>%
+  
+  #creating a new column where they speak any other language aside from english
+  mutate(Something_Else = Gaelic + Scots + BSL + Polish + Other) %>%
+  
+  #choose the areas we are interested in
+  filter(Area %in% c("Partick West", "Maryhill/Kelvin", "Hillhead")) %>%
+  
+  #selecting the clolumns we will need for the plots
+  select("Area", "English_only", "Something_Else")
+
+
+
+#converting the table into a longer format
+chart_long <- pivot_longer(data = language_needed, 
+                           names_to = "Language",
+                           values_to = "Speakers",
+                           cols = English_only:Something_Else)
+
+#setting the factors
+chart_long <- chart_long %>%
+  mutate(Language = as.factor(Language),
+         Area = as.factor(Area))
+
+```
+
+*Comparing bar charts*
+```{r}
+ggplot(data = chart_long, aes(fill=Language, y=Speakers, x=Area)) + 
+  geom_bar(position="dodge", stat="identity") +
+  theme_minimal() +
+  ggtitle("Number of people speaking a different language in different parts of Glasgow") +
+  scale_fill_viridis_d(alpha = .7) +
+  scale_y_continuous(name = "Number of speakers") +
+  scale_x_discrete(name = "Areas of Glasgow")
+```
+
+
+
+
+
+
+**Ways of travel based on parts of the city**
+#original datset has "-" when noone picked that option
+#to do anything mathematical we need to set '-' to appear as 0
+#read_csv ahs an argument 'na' where we specify characters to be read in as NA - we make '-' into NA
+#write.csv will create a .csv file, where we can specify what to pu instead of NA - we make NA into 0
+```{r}
+travel_codebook <- read_csv("http://opendata.uksouth.cloudapp.azure.com/dataset/5c284fdb-303c-4958-9428-773d73819328/resource/6c8151f1-ade1-4f4b-9959-4c7023864043/download/metadata-for-travel-to-work-study.csv")
+
+travel <- read_csv("http://opendata.uksouth.cloudapp.azure.com/dataset/5c284fdb-303c-4958-9428-773d73819328/resource/771f4bd6-4ec0-457d-8575-475f000efad7/download/travel-to-work-or-study-2011-glasgow-dz.csv", na = c("-", "NA"), quoted_na = TRUE)
+
+
+travel <- write.csv(travel, "travel.csv", na = "0")
+travel <- read_csv("travel.csv")
+
+```
+
+Tiding up the data
+```{r}
+travel_needed <- travel %>%
+  
+  #deleting the cloumns that we won't use
+  select(-`Data Zone`) %>%
+  select(-X1) %>%
+  select(-'All people') %>%
+  
+  #renameing some columns for easier access
+  rename(Area = "Intermediate Geography Name",
+         From_home = "Work or study mainly at or from home",
+         Metro = "Underground metro light rail or tram",
+         Bus = "Bus minibus or coach",
+         Train = "Train",
+         Taxi = "Taxi or minicab",
+         Drive = "Driving a car or van",
+         Passenger = "Passenger in a car or van",
+         Motorcycle = "Motorcycle scooter or moped",
+         On_foot = "On foot") %>%
+  
+  #grouping by areas so we could get the sum of each way of transport for each area
+  group_by(Area)%>%
+  summarise(#All = sum(All),
+            From_home = sum(From_home),
+            Metro = sum(Metro),
+            Train = sum(Train),
+            Bus = sum(Bus),
+            Taxi = sum(Taxi),
+            Drive = sum(Drive),
+            Passenger = sum(Passenger),
+            Motorcycle = sum(Motorcycle),
+            Bicycle = sum(Bicycle),
+            On_foot = sum(On_foot),
+            Other = sum(Other)
+            ) %>%
+  
+  #Creating new colums with umbrella terms, so we could better represent them
+  mutate(Public_Transport = Metro + Train + Bus,
+         Car_or_Motorcycle = Drive + Passenger + Taxi + Motorcycle) %>%
+  
+  #Deleting the columns we included in umbrella terms
+  select(-"Metro") %>%
+  select(-"Train") %>%
+  select(-"Bus") %>%
+  select(-"Drive") %>%
+  select(-"Passenger") %>%
+  select(-"Taxi") %>%
+  select(-"Motorcycle") %>%
+         
+  #choose the areas we are interested in
+  filter(Area %in% c("City Centre East", "City Centre West", "Finnieston and Kelvinhaugh", "Kelvingrove and University"))
+
+
+
+
+
+#converting the table into a longer format
+travel_long <- pivot_longer(data = travel_needed, 
+                           names_to = "Way_of_travel",
+                           values_to = "People",
+                           cols = From_home:Car_or_Motorcycle)
+
+#setting the factors
+travel_long <- travel_long %>%
+  mutate(Way_of_travel = as.factor(Way_of_travel),
+         Area = as.factor(Area))
+
+```
+
+
+*Comparing percentages of bar charts*
+```{r}
+ggplot(data = travel_long, aes(fill=Way_of_travel, y=People, x=Area)) + 
+  geom_bar(position="fill", stat="identity", alpha = .7) +
+  ggtitle("Ways of travel used in different parts of Glasgow") +
+  theme_minimal() +
+  scale_y_continuous(name = "Percentage of people using the given type of travel") +
+  scale_x_discrete(name = "Areas of Glasgow", labels = c("CityCentre East", "CityCentre West", "Finnieston", "Kelvingrove"))
+```
+
+
+*Comparing exact numbers with bar charts*
+```{r}
+ggplot(data = travel_long, aes(fill=Way_of_travel, y=People, x=Way_of_travel)) + 
+  geom_bar(position="dodge", stat="identity", alpha = .7) +
+  ggtitle("Ways of travel used in different parts of Glasgow") +
+  theme_minimal() +
+  scale_y_continuous(name = "Number of people using the given type of travel") +
+  scale_x_discrete(name = "Areas of Glasgow", labels = c("", "", "", "", "", "")) +
+  facet_wrap(~Area)
+```
+
+
+
+
+
+**Glasgow International Airport**
+```{r}
+GLA1516 <- read_csv("http://opendata.uksouth.cloudapp.azure.com/dataset/2f9d6bb3-60fe-464a-be59-ed57cef62cc9/resource/af7067e4-52ca-4d7f-b91b-5c97d6f143e5/download/glasgow-airport-passenger-numbers-2016.csv")
+
+GLA1718 <- read_csv("http://opendata.uksouth.cloudapp.azure.com/dataset/2f9d6bb3-60fe-464a-be59-ed57cef62cc9/resource/5da89e1e-9739-4ee1-8d12-c0363e141d90/download/glasgow-airport-passenger-numbers-2018.csv")
+
+
+#tiding up the two datasets and setting the order of the months
+GLA1718_needed <- GLA1718 %>%
+  mutate("2018" = this_year_pax/1000000,
+         "2017" = last_year_pax/1000000,
+         Month = as.factor(Month),
+         Month = fct_relevel(Month, "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")) %>%
+  select(Month, "2017", "2018")
+
+GLA1516_needed <- GLA1516 %>%
+  mutate("2016" = this_year_pax/1000000,
+         "2015" = last_year_pax/1000000,
+         Month = as.factor(Month),
+         Month = fct_relevel(Month, "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")) %>%
+  select(Month, "2015", "2016")
+
+
+GLA1518 <- (inner_join(GLA1516_needed, GLA1718_needed, by = "Month"))
+
+
+GLA1518_long <- pivot_longer(GLA1518,
+                             names_to = "Year",
+                             values_to = "Pax",
+                             cols = "2015":"2018") %>%
+  mutate(Month = as.factor(Month),
+         Year = as.factor(Year))
+
+
+
+```
+
+**Linegraph with dots**
+#shows the change in the number of passengers at the airport
+```{r}
+ggplot(GLA1518_long, aes(x = Month, y=Pax, group = Year, color = Year)) +
+  geom_line()+
+  geom_point() +
+  theme_minimal() +
+  scale_y_continuous(name = "Number of passengers (Million)") +
+  ggtitle("Passengers at Glasgow International Airport 2015-2018")
+```
+
+
+
+the method of making the graphs were taken from: https://www.r-graph-gallery.com/index.html
